@@ -153,6 +153,10 @@
 
   .result{ text-align:center; }
   .result-title{ font-size:15px; font-weight:700; color:var(--ink); margin-bottom:10px; }
+  .stability-warn{
+    background:#fbf0da; color:#8a611a; font-size:12.5px; line-height:1.7;
+    border-radius:10px; padding:10px 12px; margin-bottom:14px; text-align:left;
+  }
   .result-badge{
     display:inline-block; font-size:15px; font-weight:800; padding:8px 20px;
     border-radius:999px; margin: 4px 0 10px;
@@ -208,7 +212,7 @@
 
   <!-- Live camera card -->
   <div class="card hidden" id="liveCard">
-    <div class="step-badge"><span class="dot"></span><span id="liveStepText">請對準測試部位，保持手機不動</span></div>
+    <div class="notice" id="liveStepText">鏡頭對準測試部位，用力按壓測試部位 3 秒，放開後按下「放開了！開始比對」按鈕，保持不動直到倒數結束</div>
     <div class="canvas-wrap">
       <video id="video" autoplay muted playsinline></video>
       <div class="countdown-overlay hidden" id="countdownOverlay">
@@ -249,15 +253,17 @@
     </div>
 
     <div class="btn-row">
-      <button class="btn-primary" id="analyzeBtn">比對結果</button>
-      <button class="btn-ghost" id="redoBtn">重新選取</button>
-      <button class="btn-ghost" id="restartBtn">重新測試</button>
+      <button class="btn-ghost" id="backBtn">上一步</button>
+      <button class="btn-primary hidden" id="analyzeBtn">比對結果</button>
     </div>
   </div>
 
   <!-- Result Card -->
   <div class="card result hidden" id="resultCard">
     <div class="result-title">分析你現在的情況是...</div>
+    <div class="stability-warn hidden" id="stabilityWarn">
+      ⚠️ 偵測到拍攝過程中鏡頭或光線變化較大，這次的結果可能不準確。建議把手機固定好（靠牆、用架子撐著），保持全程不動再測一次。
+    </div>
     <div class="result-badge" id="scoreLabel">—</div>
     <div class="gauge-desc" id="scoreDesc">—</div>
 
@@ -292,6 +298,8 @@
         本工具用相機分別在「放開當下」與「10 秒後」拍下畫面，同時比對兩個指標：
         壓痕處的<b>凹陷陰影</b>是否已經回彈，以及按壓造成的<b>皮膚泛白（暫時缺血）</b>是否已經恢復原本膚色，
         只要有一項還沒恢復，就會判定為中重度水腫，標準較為嚴格。
+        因為是比對兩張相隔 10 秒的照片，<b>手機或鏡頭在這 10 秒內若有移動、光線改變</b>，
+        都可能讓兩張照片對不齊而影響準確度，工具偵測到這種情況時會另外提醒重測。
         僅為外觀估算，<b>並非醫療診斷</b>，如有持續或嚴重水腫，請諮詢專業醫療人員。
       </p>
     </details>
@@ -326,8 +334,7 @@
   const pickNum = document.getElementById('pickNum');
   const pickText = document.getElementById('pickText');
   const analyzeBtn = document.getElementById('analyzeBtn');
-  const redoBtn = document.getElementById('redoBtn');
-  const restartBtn = document.getElementById('restartBtn');
+  const backBtn = document.getElementById('backBtn');
   const retestBtn = document.getElementById('retestBtn');
   const restartBtn2 = document.getElementById('restartBtn2');
 
@@ -433,6 +440,8 @@
       seg.classList.toggle('done', i < state);
     });
     stepLines.forEach((line, i) => line.classList.toggle('done', i < state));
+
+    analyzeBtn.classList.toggle('hidden', state < 3);
   }
 
   function drawMarker(pos, color, preview){
@@ -557,8 +566,6 @@
     redraw();
   });
 
-  redoBtn.addEventListener('click', resetPoints);
-
   function fullRestart(){
     clearInterval(countdownTimer);
     stopCamera();
@@ -569,7 +576,23 @@
     releaseBtn.disabled = false;
     countdownOverlay.classList.add('hidden');
   }
-  restartBtn.addEventListener('click', fullRestart);
+
+  function stepBack(){
+    if(state === 3){
+      spotB = null; state = 2;
+    } else if(state === 2){
+      radius = null; state = 1;
+    } else if(state === 1){
+      spotA = null; state = 0;
+    } else {
+      fullRestart();
+      return;
+    }
+    updateInstruction();
+    redraw();
+  }
+  backBtn.addEventListener('click', stepBack);
+
   restartBtn2.addEventListener('click', fullRestart);
   retestBtn.addEventListener('click', resetPoints);
 
@@ -605,11 +628,6 @@
   }
 
   analyzeBtn.addEventListener('click', () => {
-    if(state < 3){
-      pickBanner.classList.add('warn', 'shake');
-      setTimeout(() => { pickBanner.classList.remove('warn', 'shake'); }, 900);
-      return;
-    }
     try{
       runAnalysis();
     }catch(err){
@@ -618,12 +636,20 @@
   });
 
   function runAnalysis(){
-    const sampleR = Math.max(6, Math.min(radius/2.5, 16));
+    const sampleR = Math.max(10, Math.min(radius/2.2, 20));
+    const refR = 16;
 
     const a0 = sampleRegion(shot0, spotA.x, spotA.y, sampleR);
-    const b0 = sampleRegion(shot0, spotB.x, spotB.y, 12);
+    const b0 = sampleRegion(shot0, spotB.x, spotB.y, refR);
     const a10 = sampleRegion(shot10, spotA.x, spotA.y, sampleR);
-    const b10 = sampleRegion(shot10, spotB.x, spotB.y, 12);
+    const b10 = sampleRegion(shot10, spotB.x, spotB.y, refR);
+
+    // sanity check: the reference patch is plain, untouched skin — it should barely
+    // change between the two shots. If it moved a lot, the phone/leg likely shifted
+    // (or lighting changed) during the 10s wait, so the whole comparison is unreliable.
+    const refColorDrift = colorDist(b0, b10);
+    const refLumDrift = Math.abs(b10.lum - b0.lum) / Math.max(b0.lum, 1);
+    const unstable = refColorDrift > 0.10 || refLumDrift > 0.18;
 
     // factor 1: depth of the pressed dent (shadow proxy)
     const depth0 = clamp((b0.lum - a0.lum) / Math.max(b0.lum, 1), 0, 1);
@@ -631,11 +657,17 @@
     const DEPTH_LOW = 0.05;
     const depthRecover = depth0 > 0.001 ? clamp(1 - (depth10 / depth0), 0, 1) : 1;
 
-    // factor 2: skin colour deviation (blanching / discolouration) vs reference skin
-    const color0 = colorDist(a0, b0);
-    const color10 = colorDist(a10, b10);
-    const COLOR_LOW = 0.04;
-    const colorRecover = color0 > 0.01 ? clamp(1 - (color10 / color0), 0, 1) : 1;
+    // factor 2: skin blanching (paleness) vs reference skin, direction-aware.
+    // Redness/blood-flow proxy: high when skin is flushed/pink, low when blanched/pale.
+    // Only "spot is paler than reference" counts against recovery — if the spot rebounds
+    // to be as pink as or pinker than reference (a normal reactive flush as blood returns),
+    // that reads as fully recovered rather than "still discoloured".
+    const redness = (p) => p.r - (p.g + p.b) / 2;
+    const paleness = (spot, ref) => clamp((redness(ref) - redness(spot)) / 120, 0, 1);
+    const color0 = paleness(a0, b0);
+    const color10 = paleness(a10, b10);
+    const COLOR_LOW = 0.05;
+    const colorRecover = color0 > 0.02 ? clamp(1 - (color10 / color0), 0, 1) : 1;
 
     let label, badgeBg, badgeColor, desc;
     if(depth0 < DEPTH_LOW && color0 < COLOR_LOW){
@@ -658,6 +690,8 @@
         desc = `10 秒後「${lagging.join('、')}」仍未恢復，回彈較慢，建議留意飲食鹽分攝取並持續觀察，如持續未改善建議諮詢專業醫療人員。`;
       }
     }
+
+    document.getElementById('stabilityWarn').classList.toggle('hidden', !unstable);
 
     document.getElementById('scoreLabel').textContent = label;
     document.getElementById('scoreLabel').style.background = badgeBg;
