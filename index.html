@@ -152,6 +152,7 @@
   .btn-ghost:hover{ background:#e7e0d6; }
 
   .result{ text-align:center; }
+  .result-title{ font-size:15px; font-weight:700; color:var(--ink); margin-bottom:10px; }
   .result-badge{
     display:inline-block; font-size:15px; font-weight:800; padding:8px 20px;
     border-radius:999px; margin: 4px 0 10px;
@@ -256,6 +257,7 @@
 
   <!-- Result Card -->
   <div class="card result hidden" id="resultCard">
+    <div class="result-title">分析你現在的情況是...</div>
     <div class="result-badge" id="scoreLabel">—</div>
     <div class="gauge-desc" id="scoreDesc">—</div>
 
@@ -408,6 +410,7 @@
   function resetPoints(){
     state = 0; spotA = null; radius = null; spotB = null;
     resultCard.classList.add('hidden');
+    markCard.classList.remove('hidden');
     updateInstruction();
     redraw();
   }
@@ -667,8 +670,9 @@
     drawCrop(document.getElementById('cropA'), shot0, spotA.x, spotA.y, sampleR);
     drawCrop(document.getElementById('cropB'), shot10, spotA.x, spotA.y, sampleR);
 
+    markCard.classList.add('hidden');
     resultCard.classList.remove('hidden');
-    resultCard.scrollIntoView({behavior:'smooth', block:'nearest'});
+    resultCard.scrollIntoView({behavior:'smooth', block:'start'});
   }
 
   startCameraBtn.addEventListener('click', startCamera);
