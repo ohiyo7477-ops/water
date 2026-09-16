@@ -48,6 +48,43 @@
   }
   .step-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);}
 
+  .stepper{ display:flex; align-items:flex-start; justify-content:center; gap:0; margin-bottom:14px; }
+  .stepper .seg{ display:flex; flex-direction:column; align-items:center; gap:6px; width:76px; }
+  .stepper .circ{
+    width:28px; height:28px; border-radius:50%; background:#ece6df; color:var(--sub);
+    display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800;
+    transition: background .2s ease, color .2s ease, transform .2s ease;
+  }
+  .stepper .seg.done .circ{ background: var(--green); color:#fff; }
+  .stepper .seg.active .circ{ background: var(--accent); color:#fff; transform:scale(1.12); }
+  .stepper .seg .lbl{ font-size:11px; color:var(--sub); }
+  .stepper .seg.active .lbl{ color:var(--accent-dark); font-weight:700; }
+  .stepper .line{ width:34px; height:2px; background:#ece6df; margin-top:13px; }
+  .stepper .line.done{ background: var(--green); }
+
+  .pick-banner{
+    position:absolute; top:0; left:0; right:0;
+    display:flex; align-items:center; gap:10px;
+    background: linear-gradient(rgba(20,15,10,0.72), rgba(20,15,10,0.45) 80%, transparent);
+    color:#fff; padding:12px 14px 20px;
+    font-size:14px; font-weight:700; line-height:1.4;
+    pointer-events:none;
+  }
+  .pick-banner .pnum{
+    flex:none; width:26px; height:26px; border-radius:50%;
+    background: var(--accent); color:#fff; font-size:13px; font-weight:800;
+    display:flex; align-items:center; justify-content:center;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce){ .pick-banner .pnum{ animation:none; } }
+  @keyframes pulse{
+    0%,100%{ box-shadow:0 0 0 0 rgba(201,138,90,0.55); }
+    50%{ box-shadow:0 0 0 7px rgba(201,138,90,0); }
+  }
+  .pick-banner.warn{ background: linear-gradient(rgba(179,64,44,0.82), rgba(179,64,44,0.5) 80%, transparent); }
+  .pick-banner.warn .pnum{ background: var(--red); }
+  .pick-banner .sub{ font-size:11.5px; font-weight:500; opacity:0.85; display:block; margin-top:2px; }
+
   .howto{ font-size:13.5px; line-height:1.9; margin: 4px 0 18px; }
   .howto b{ color: var(--accent-dark); }
   .notice{
@@ -74,7 +111,7 @@
     touch-action: none;
   }
   video, canvas{ display:block; max-width:100%; }
-  canvas{ cursor: crosshair; }
+  canvas{ cursor: crosshair; touch-action: none; }
 
   .countdown-overlay{
     position:absolute; inset:0;
@@ -85,22 +122,6 @@
   .countdown-overlay .num{ font-size:56px; font-weight:800; line-height:1; }
   .countdown-overlay .txt{ font-size:13px; margin-top:6px; opacity:0.9; }
 
-  .instruction{
-    display:flex; align-items:center; gap:10px;
-    background:#fbf7f2;
-    border-radius:10px;
-    padding:12px 14px;
-    margin-top:14px;
-    font-size:13.5px;
-    line-height:1.5;
-  }
-  .instruction .num{
-    flex:none; width:22px;height:22px;border-radius:50%;
-    background:var(--accent); color:#fff; font-size:12px; font-weight:700;
-    display:flex; align-items:center; justify-content:center;
-  }
-  .instruction.warn{ background:#fbeae6; }
-  .instruction.warn .num{ background:var(--red); }
   @keyframes shake{
     10%,90%{ transform: translateX(-1px); }
     20%,80%{ transform: translateX(2px); }
@@ -201,15 +222,23 @@
 
   <!-- Mark card (tag the pressed spot on the frame captured at release) -->
   <div class="card hidden" id="markCard">
-    <div class="step-badge"><span class="dot"></span><span id="stepBadgeText">步驟 1／3</span></div>
+    <div class="stepper" id="stepper">
+      <div class="seg" data-step="0"><div class="circ">1</div><div class="lbl">中心</div></div>
+      <div class="line" id="line1"></div>
+      <div class="seg" data-step="1"><div class="circ">2</div><div class="lbl">範圍</div></div>
+      <div class="line" id="line2"></div>
+      <div class="seg" data-step="2"><div class="circ">3</div><div class="lbl">對照</div></div>
+    </div>
 
     <div class="canvas-wrap">
       <canvas id="mainCanvas"></canvas>
-    </div>
-
-    <div class="instruction">
-      <div class="num" id="instrNum">1</div>
-      <div id="instrText">請點選照片上「壓痕凹陷最深」的位置</div>
+      <div class="pick-banner" id="pickBanner">
+        <div class="pnum" id="pickNum">1</div>
+        <div>
+          <div id="pickText">請點選畫面上「壓痕凹陷最深」的位置</div>
+          <span class="sub">按住畫面拖曳微調，放開手指即可確認位置</span>
+        </div>
+      </div>
     </div>
 
     <div class="legend">
@@ -243,8 +272,8 @@
     </div>
 
     <div class="metric-row">
-      <div>放開當下凹陷指數<b id="depth0Num">—</b></div>
-      <div>10 秒後回彈程度<b id="recoverNum">—</b></div>
+      <div>凹陷回彈度<b id="recoverNum">—</b></div>
+      <div>膚色回復度<b id="colorRecoverNum">—</b></div>
     </div>
 
     <div class="btn-row" style="justify-content:center;">
@@ -258,7 +287,9 @@
         參考臨床上常用的「按壓測試」：在小腿前側脛骨處用力按壓約 3 秒後放開，
         <b>正常</b>皮膚會立刻回彈、不留痕跡；<b>輕度水腫</b>會出現淺淺凹陷，但很快回彈；
         <b>中重度水腫</b>凹陷較深，需要 10 秒以上甚至更久才能完全恢復。
-        本工具用相機分別在「放開當下」與「10 秒後」拍下畫面，比對同一位置的凹陷程度是否已經恢復，
+        本工具用相機分別在「放開當下」與「10 秒後」拍下畫面，同時比對兩個指標：
+        壓痕處的<b>凹陷陰影</b>是否已經回彈，以及按壓造成的<b>皮膚泛白（暫時缺血）</b>是否已經恢復原本膚色，
+        只要有一項還沒恢復，就會判定為中重度水腫，標準較為嚴格。
         僅為外觀估算，<b>並非醫療診斷</b>，如有持續或嚴重水腫，請諮詢專業醫療人員。
       </p>
     </details>
@@ -286,9 +317,12 @@
 
   const canvas = document.getElementById('mainCanvas');
   const ctx = canvas.getContext('2d');
-  const stepBadgeText = document.getElementById('stepBadgeText');
-  const instrNum = document.getElementById('instrNum');
-  const instrText = document.getElementById('instrText');
+  const stepper = document.getElementById('stepper');
+  const stepSegs = stepper.querySelectorAll('.seg');
+  const stepLines = [document.getElementById('line1'), document.getElementById('line2')];
+  const pickBanner = document.getElementById('pickBanner');
+  const pickNum = document.getElementById('pickNum');
+  const pickText = document.getElementById('pickText');
   const analyzeBtn = document.getElementById('analyzeBtn');
   const redoBtn = document.getElementById('redoBtn');
   const restartBtn = document.getElementById('restartBtn');
@@ -378,68 +412,106 @@
     redraw();
   }
 
+  const STEP_COPY = [
+    { num:'1', text:'請按住畫面上「壓痕凹陷最深」的位置' },
+    { num:'2', text:'拖曳到壓痕的外緣，標示凹陷範圍大小' },
+    { num:'3', text:'按住旁邊「沒有壓痕」的正常皮膚作為對照' },
+    { num:'✓', text:'已完成標記，點擊下方「比對結果」查看分析' }
+  ];
+
   function updateInstruction(){
-    if(state === 0){
-      stepBadgeText.textContent = '步驟 1／3';
-      instrNum.textContent = '1';
-      instrText.textContent = '請點選畫面上「壓痕凹陷最深」的位置';
-    } else if(state === 1){
-      stepBadgeText.textContent = '步驟 2／3';
-      instrNum.textContent = '2';
-      instrText.textContent = '請點選壓痕的外緣，標示凹陷範圍大小';
-    } else if(state === 2){
-      stepBadgeText.textContent = '步驟 3／3';
-      instrNum.textContent = '3';
-      instrText.textContent = '請點選旁邊「沒有壓痕」的正常皮膚位置作為對照';
-    } else {
-      stepBadgeText.textContent = '選取完成';
-      instrNum.textContent = '✓';
-      instrText.textContent = '已完成標記，點擊「比對結果」查看分析';
-    }
+    const step = Math.min(state, 3);
+    const copy = STEP_COPY[step];
+    pickNum.textContent = copy.num;
+    pickText.textContent = copy.text;
+
+    stepSegs.forEach((seg, i) => {
+      seg.classList.toggle('active', i === state);
+      seg.classList.toggle('done', i < state);
+    });
+    stepLines.forEach((line, i) => line.classList.toggle('done', i < state));
+  }
+
+  function drawMarker(pos, color, preview){
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, preview ? 7 : 5, 0, Math.PI*2);
+    ctx.globalAlpha = preview ? 0.85 : 1;
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+  }
+
+  function drawRing(center, r, color, preview){
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, r, 0, Math.PI*2);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = preview ? 0.85 : 1;
+    ctx.setLineDash([5,4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawLoupe(pos){
+    const loupeR = 42, zoom = 2.6;
+    let lx = Math.max(loupeR+2, Math.min(canvas.width-loupeR-2, pos.x));
+    let ly = pos.y - 85;
+    if(ly - loupeR < 0) ly = pos.y + 85;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(lx, ly, loupeR, 0, Math.PI*2);
+    ctx.closePath();
+    ctx.clip();
+    const srcSize = (loupeR*2) / zoom;
+    ctx.drawImage(shot0, pos.x - srcSize/2, pos.y - srcSize/2, srcSize, srcSize, lx - loupeR, ly - loupeR, loupeR*2, loupeR*2);
+    ctx.restore();
+
+    ctx.beginPath(); ctx.arc(lx, ly, loupeR, 0, Math.PI*2);
+    ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(lx-9, ly); ctx.lineTo(lx+9, ly);
+    ctx.moveTo(lx, ly-9); ctx.lineTo(lx, ly+9);
+    ctx.strokeStyle = '#e0413f'; ctx.lineWidth = 1.5;
+    ctx.stroke();
   }
 
   function redraw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.drawImage(shot0, 0, 0, canvas.width, canvas.height);
 
-    if(spotA){
-      ctx.beginPath();
-      ctx.arc(spotA.x, spotA.y, 5, 0, Math.PI*2);
-      ctx.fillStyle = '#e0413f';
-      ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
-    }
-    if(radius){
-      ctx.beginPath();
-      ctx.arc(spotA.x, spotA.y, radius, 0, Math.PI*2);
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = '#e0913f';
-      ctx.setLineDash([5,4]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    if(spotB){
-      ctx.beginPath();
-      ctx.arc(spotB.x, spotB.y, 5, 0, Math.PI*2);
-      ctx.fillStyle = '#3f7be0';
-      ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+    if(spotA) drawMarker(spotA, '#e0413f');
+    if(radius) drawRing(spotA, radius, '#e0913f');
+    if(spotB) drawMarker(spotB, '#3f7be0');
+
+    if(dragging && dragPos){
+      if(state === 0 || state === 3){
+        drawMarker(dragPos, '#e0413f', true);
+      } else if(state === 1){
+        const dx = dragPos.x - spotA.x, dy = dragPos.y - spotA.y;
+        drawRing(spotA, Math.max(6, Math.sqrt(dx*dx+dy*dy)), '#e0913f', true);
+      } else if(state === 2){
+        drawMarker(dragPos, '#3f7be0', true);
+      }
+      drawLoupe(dragPos);
     }
   }
 
   function getPos(e){
     const rect = canvas.getBoundingClientRect();
-    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-    const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
     return {
       x: cx * (canvas.width / rect.width),
       y: cy * (canvas.height / rect.height)
     };
   }
 
-  function handlePick(e){
-    e.preventDefault();
-    const pos = getPos(e);
+  function commitPoint(pos){
     if(state === 0){
       spotA = pos; state = 1;
     } else if(state === 1){
@@ -452,11 +524,35 @@
       spotA = pos; radius = null; spotB = null; state = 1;
     }
     updateInstruction();
-    redraw();
   }
 
-  canvas.addEventListener('mousedown', handlePick);
-  canvas.addEventListener('touchstart', handlePick, {passive:false});
+  let dragging = false;
+  let dragPos = null;
+
+  canvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    dragging = true;
+    dragPos = getPos(e);
+    redraw();
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if(!dragging) return;
+    dragPos = getPos(e);
+    redraw();
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    if(!dragging) return;
+    dragging = false;
+    commitPoint(dragPos);
+    dragPos = null;
+    redraw();
+  });
+  canvas.addEventListener('pointercancel', () => {
+    dragging = false;
+    dragPos = null;
+    redraw();
+  });
 
   redoBtn.addEventListener('click', resetPoints);
 
@@ -480,14 +576,20 @@
     const y0 = Math.max(0, Math.round(cy - r));
     const w = Math.min(sourceCanvas.width - x0, Math.round(r*2));
     const h = Math.min(sourceCanvas.height - y0, Math.round(r*2));
-    if(w <= 0 || h <= 0) return {lum:128};
+    if(w <= 0 || h <= 0) return { lum:128, r:128, g:128, b:128 };
     const data = sourceCanvas.getContext('2d').getImageData(x0,y0,w,h).data;
     let sr=0,sg=0,sb=0,n=0;
     for(let i=0;i<data.length;i+=4){
       sr += data[i]; sg += data[i+1]; sb += data[i+2]; n++;
     }
     sr/=n; sg/=n; sb/=n;
-    return { lum: 0.299*sr + 0.587*sg + 0.114*sb };
+    return { lum: 0.299*sr + 0.587*sg + 0.114*sb, r:sr, g:sg, b:sb };
+  }
+
+  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+  function colorDist(p, q){
+    return Math.sqrt((p.r-q.r)**2 + (p.g-q.g)**2 + (p.b-q.b)**2) / 441.7;
   }
 
   function drawCrop(targetCanvas, sourceCanvas, cx, cy, r){
@@ -501,10 +603,8 @@
 
   analyzeBtn.addEventListener('click', () => {
     if(state < 3){
-      const box = document.querySelector('#markCard .instruction');
-      box.classList.add('warn');
-      instrNum.parentElement.classList.add('shake');
-      setTimeout(() => { instrNum.parentElement.classList.remove('shake'); box.classList.remove('warn'); }, 900);
+      pickBanner.classList.add('warn', 'shake');
+      setTimeout(() => { pickBanner.classList.remove('warn', 'shake'); }, 900);
       return;
     }
     try{
@@ -522,25 +622,38 @@
     const a10 = sampleRegion(shot10, spotA.x, spotA.y, sampleR);
     const b10 = sampleRegion(shot10, spotB.x, spotB.y, 12);
 
-    const depth0 = Math.max(0, Math.min(1, (b0.lum - a0.lum) / Math.max(b0.lum, 1)));
-    const depth10 = Math.max(0, Math.min(1, (b10.lum - a10.lum) / Math.max(b10.lum, 1)));
+    // factor 1: depth of the pressed dent (shadow proxy)
+    const depth0 = clamp((b0.lum - a0.lum) / Math.max(b0.lum, 1), 0, 1);
+    const depth10 = clamp((b10.lum - a10.lum) / Math.max(b10.lum, 1), 0, 1);
+    const DEPTH_LOW = 0.05;
+    const depthRecover = depth0 > 0.001 ? clamp(1 - (depth10 / depth0), 0, 1) : 1;
 
-    const LOW_THRESH = 0.05;
-    const recoverRatio = depth0 > 0.001 ? Math.max(0, Math.min(1, 1 - (depth10 / depth0))) : 1;
+    // factor 2: skin colour deviation (blanching / discolouration) vs reference skin
+    const color0 = colorDist(a0, b0);
+    const color10 = colorDist(a10, b10);
+    const COLOR_LOW = 0.04;
+    const colorRecover = color0 > 0.01 ? clamp(1 - (color10 / color0), 0, 1) : 1;
 
     let label, badgeBg, badgeColor, desc;
-    if(depth0 < LOW_THRESH){
+    if(depth0 < DEPTH_LOW && color0 < COLOR_LOW){
       label = '正常，無明顯水腫';
       badgeBg = '#e7f4ec'; badgeColor = '#2f8f5f';
-      desc = '按壓後幾乎沒有留下凹陷痕跡，皮膚回彈快，目前沒有明顯的水腫跡象。';
-    } else if(depth10 < LOW_THRESH || recoverRatio > 0.6){
-      label = '輕度水腫';
-      badgeBg = '#fbf0da'; badgeColor = '#a67a1f';
-      desc = '放開後出現淺淺凹陷，但在 10 秒內已經明顯回彈，屬於輕度水腫的常見表現，建議多補充水分、適度活動下肢。';
+      desc = '按壓後幾乎沒有留下凹陷或膚色變化，皮膚回彈快，目前沒有明顯的水腫跡象。';
     } else {
-      label = '中重度水腫';
-      badgeBg = '#fbe6e1'; badgeColor = '#b6402c';
-      desc = '凹陷在 10 秒後仍然明顯、回彈較慢，建議留意飲食鹽分攝取並持續觀察，如持續未改善建議諮詢專業醫療人員。';
+      const depthOK = depth10 < DEPTH_LOW || depthRecover > 0.6;
+      const colorOK = color10 < COLOR_LOW || colorRecover > 0.6;
+      if(depthOK && colorOK){
+        label = '輕度水腫';
+        badgeBg = '#fbf0da'; badgeColor = '#a67a1f';
+        desc = '放開後出現淺淺凹陷或短暫泛白，但在 10 秒內凹陷與膚色都已明顯恢復，屬於輕度水腫的常見表現，建議多補充水分、適度活動下肢。';
+      } else {
+        label = '中重度水腫';
+        badgeBg = '#fbe6e1'; badgeColor = '#b6402c';
+        const lagging = [];
+        if(!depthOK) lagging.push('凹陷');
+        if(!colorOK) lagging.push('膚色泛白');
+        desc = `10 秒後「${lagging.join('、')}」仍未恢復，回彈較慢，建議留意飲食鹽分攝取並持續觀察，如持續未改善建議諮詢專業醫療人員。`;
+      }
     }
 
     document.getElementById('scoreLabel').textContent = label;
@@ -548,8 +661,8 @@
     document.getElementById('scoreLabel').style.color = badgeColor;
     document.getElementById('scoreDesc').textContent = desc;
 
-    document.getElementById('depth0Num').textContent = Math.round(depth0*100) + '%';
-    document.getElementById('recoverNum').textContent = depth0 < LOW_THRESH ? '—' : Math.round(recoverRatio*100) + '%';
+    document.getElementById('recoverNum').textContent = depth0 < DEPTH_LOW ? '—' : Math.round(depthRecover*100) + '%';
+    document.getElementById('colorRecoverNum').textContent = color0 < COLOR_LOW ? '—' : Math.round(colorRecover*100) + '%';
 
     drawCrop(document.getElementById('cropA'), shot0, spotA.x, spotA.y, sampleR);
     drawCrop(document.getElementById('cropB'), shot10, spotA.x, spotA.y, sampleR);
