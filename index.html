@@ -713,5 +713,75 @@
 
 })();
 </script>
+
+<script>
+  (function () {
+    let lastHeight = 0;
+    let rafId = null;
+
+    function contentHeight() {
+      let kids = 0;
+
+      for (const el of document.body.children) {
+        kids = Math.max(
+          kids,
+          el.offsetTop + el.scrollHeight
+        );
+      }
+
+      return Math.max(
+        document.body.scrollHeight,
+        document.documentElement.scrollHeight,
+        document.body.offsetHeight,
+        document.documentElement.offsetHeight,
+        document.body.clientHeight,
+        document.documentElement.clientHeight,
+        kids
+      );
+    }
+
+    function sendHeight() {
+      if (rafId) cancelAnimationFrame(rafId);
+
+      rafId = requestAnimationFrame(() => {
+        const height = contentHeight();
+
+        if (height !== lastHeight) {
+          lastHeight = height;
+
+          window.parent.postMessage(
+            {
+              type: 'cofit-iframe-resize',
+              height: height
+            },
+            '*'
+          );
+        }
+      });
+    }
+
+    window.addEventListener('load', sendHeight);
+    window.addEventListener('resize', sendHeight);
+    document.addEventListener('DOMContentLoaded', sendHeight);
+
+    if ('ResizeObserver' in window) {
+      const ro = new ResizeObserver(sendHeight);
+
+      ro.observe(document.documentElement);
+      ro.observe(document.body);
+
+      for (const el of document.body.children) {
+        ro.observe(el);
+      }
+    }
+
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(sendHeight);
+    }
+
+    setInterval(sendHeight, 500);
+    sendHeight();
+  })();
+</script>
 </body>
 </html>
