@@ -136,10 +136,6 @@
 
   .result{ text-align:center; }
   .result-title{ font-size:16px; font-weight:700; color:var(--ink); margin-bottom:10px; }
-  .stability-warn{
-    background:#fbf0da; color:#8a611a; font-size:13.5px; line-height:1.7;
-    border-radius:10px; padding:10px 12px; margin-bottom:14px; text-align:left;
-  }
   .caveat-note{
     font-size:13.5px; color:var(--sub); background:#f6f1ea; border-radius:10px;
     padding:10px 12px; line-height:1.7; margin:14px 0; text-align:left;
@@ -242,9 +238,6 @@
   <!-- Result Card -->
   <div class="card result hidden" id="resultCard">
     <div class="result-title">分析你現在的情況是...</div>
-    <div class="stability-warn hidden" id="stabilityWarn">
-      ⚠️ 偵測到拍攝過程中鏡頭或光線變化較大，這次的結果可能不準確。建議把手機固定好（靠牆、用架子撐著），保持全程不動再測一次。
-    </div>
     <div class="result-badge" id="scoreLabel">—</div>
     <div class="gauge-desc" id="scoreDesc">—</div>
 
@@ -677,7 +670,17 @@
       const colorOK = color1 < COLOR_LOW || colorRecover > 0.6;
       const recovered = depthOK && colorOK;
 
-      if(elapsed >= MAX_WAIT_MS || (elapsed >= MIN_WAIT_MS && recovered)){
+      // The reference ring should be plain, untouched skin at (roughly) the same spot
+      // every tick. If it just changed a lot, the camera or foot moved — spotA may no
+      // longer even be pointed at skin (e.g. it slid onto the floor/background). Don't
+      // trust an apparent "recovery" in that case, since it's likely reading garbage,
+      // not real skin — just keep waiting it out instead of exiting early into a wrong
+      // answer. The full-frame stability check at the end will flag it either way.
+      const refColorDrift = colorDist(b0, b1);
+      const refLumDrift = Math.abs(b1.lum - b0.lum) / Math.max(b0.lum, 1);
+      const sceneLooksStable = refColorDrift < 0.10 && refLumDrift < 0.18;
+
+      if(elapsed >= MAX_WAIT_MS || (elapsed >= MIN_WAIT_MS && recovered && sceneLooksStable)){
         clearInterval(countdownTimer);
         finishAdaptive(Math.round(elapsed/1000));
       }
@@ -766,7 +769,15 @@
     const colorRecover = color0 > 0.02 ? clamp(1 - (color10 / color0), 0, 1) : 1;
 
     let label, badgeBg, badgeColor, desc;
-    if(depth0 < DEPTH_LOW && color0 < COLOR_LOW){
+    if(unstable){
+      // The scene itself changed too much to trust these readings (camera/foot moved,
+      // lighting shifted — possibly not even pointed at skin anymore). Showing a
+      // specific verdict here would just be a confident-looking guess over garbage
+      // data, so show a neutral "couldn't read this" state instead.
+      label = '無法判讀，請重新測試';
+      badgeBg = '#ece6df'; badgeColor = '#6b6058';
+      desc = '拍攝過程中鏡頭或光線變化太大，兩張畫面對不太起來，這次沒辦法可靠判斷。請把手機固定好，保持全程不動再測一次。';
+    } else if(depth0 < DEPTH_LOW && color0 < COLOR_LOW){
       label = '正常，無明顯水腫';
       badgeBg = '#e7f4ec'; badgeColor = '#2f8f5f';
       desc = '按壓後幾乎沒有留下凹陷或膚色變化，皮膚回彈快，目前沒有明顯的水腫跡象。';
@@ -787,15 +798,13 @@
       }
     }
 
-    document.getElementById('stabilityWarn').classList.toggle('hidden', !unstable);
-
     document.getElementById('scoreLabel').textContent = label;
     document.getElementById('scoreLabel').style.background = badgeBg;
     document.getElementById('scoreLabel').style.color = badgeColor;
     document.getElementById('scoreDesc').textContent = desc;
 
-    document.getElementById('recoverNum').textContent = depth0 < DEPTH_LOW ? '—' : Math.round(depthRecover*100) + '%';
-    document.getElementById('colorRecoverNum').textContent = color0 < COLOR_LOW ? '—' : Math.round(colorRecover*100) + '%';
+    document.getElementById('recoverNum').textContent = (unstable || depth0 < DEPTH_LOW) ? '—' : Math.round(depthRecover*100) + '%';
+    document.getElementById('colorRecoverNum').textContent = (unstable || color0 < COLOR_LOW) ? '—' : Math.round(colorRecover*100) + '%';
     document.getElementById('cropBCap').textContent = lastElapsedSec + ' 秒後';
 
     drawCrop(document.getElementById('cropA'), shot0, spotA.x, spotA.y, sampleR);
