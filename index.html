@@ -100,17 +100,24 @@
 
   .countdown-overlay{
     position:absolute; inset:0;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    background:rgba(20,15,10,0.45);
+    display:flex; align-items:flex-end; justify-content:center;
+    padding-bottom: 14px;
+    pointer-events:none;
     color:#fff;
   }
-  .ring-wrap{ position:relative; width:110px; height:110px; }
+  .countdown-chip{
+    display:flex; align-items:center; gap:12px;
+    background:rgba(20,15,10,0.6);
+    border-radius:999px;
+    padding: 8px 18px 8px 8px;
+  }
+  .ring-wrap{ position:relative; width:52px; height:52px; flex:none; }
   .ring-wrap svg{ transform: rotate(-90deg); }
   .ring-num{
     position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-    font-size:32px; font-weight:800;
+    font-size:17px; font-weight:800;
   }
-  .countdown-overlay .txt{ font-size:14px; margin-top:10px; opacity:0.92; min-height:1.4em; }
+  .countdown-overlay .txt{ font-size:13.5px; opacity:0.92; }
 
   .legend{ display:flex; gap:16px; margin-top:10px; font-size:13px; color:var(--sub); flex-wrap:wrap; }
   .legend span{ display:inline-flex; align-items:center; gap:5px; }
@@ -217,14 +224,16 @@
         </div>
       </div>
       <div class="countdown-overlay hidden" id="countdownOverlay">
-        <div class="ring-wrap">
-          <svg viewBox="0 0 120 120" width="110" height="110">
-            <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="8"/>
-            <circle cx="60" cy="60" r="52" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" id="progressCircle"/>
-          </svg>
-          <div class="ring-num" id="countdownNum">10</div>
+        <div class="countdown-chip">
+          <div class="ring-wrap">
+            <svg viewBox="0 0 120 120" width="52" height="52">
+              <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="10"/>
+              <circle cx="60" cy="60" r="52" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" id="progressCircle"/>
+            </svg>
+            <div class="ring-num" id="countdownNum">10</div>
+          </div>
+          <div class="txt" id="countdownTxt">記錄血液回流中…</div>
         </div>
-        <div class="txt" id="countdownTxt">記錄血液回流中…</div>
       </div>
     </div>
     <div class="btn-row">
