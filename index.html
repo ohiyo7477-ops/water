@@ -195,7 +195,7 @@
       <div><b>① 開啟相機：</b>點擊下方按鈕，允許使用相機權限</div>
       <div><b>② 找到位置：</b>腳踝內側「內踝」凸起骨頭上方（見下圖）</div>
       <div><b>③ 用力按壓：</b>約 5 秒後放開</div>
-      <div><b>④ 標記位置：</b>放開瞬間點擊「放開了，開始比對」，接著按住畫面標記壓痕，系統會自動比對回彈狀況（最快幾秒、最多 10 秒）</div>
+      <div><b>④ 開始比對：</b>放開瞬間點擊「放開了，開始比對」，系統會自動標記壓痕位置並比對回彈狀況，全程不用再拿起手機（最快幾秒、最多 10 秒）</div>
     </div>
 
     <div class="leg-diagram">
@@ -219,8 +219,8 @@
       <canvas id="mainCanvas" class="hidden"></canvas>
       <div class="pick-banner hidden" id="pickBanner">
         <div>
-          <div id="pickBannerText">按住剛剛按壓的位置，拖曳到壓痕外緣</div>
-          <span class="sub" id="pickBannerSub">放開手指即可確認位置</span>
+          <div id="pickBannerText">已標記完成</div>
+          <span class="sub" id="pickBannerSub">位置不準可以直接點一下畫面調整，滿意就按開始比對</span>
         </div>
       </div>
       <div class="countdown-overlay hidden" id="countdownOverlay">
@@ -238,7 +238,6 @@
     </div>
     <div class="btn-row">
       <button class="btn-primary btn-big" id="releaseBtn">放開了！開始比對</button>
-      <button class="btn-ghost hidden" id="redoMarkBtn">重新圈選</button>
       <button class="btn-primary hidden" id="confirmMarkBtn">開始比對</button>
       <button class="btn-ghost hidden" id="liveRestartBtn">重新測試</button>
     </div>
@@ -328,10 +327,7 @@
   const pickBanner = document.getElementById('pickBanner');
   const pickBannerText = document.getElementById('pickBannerText');
   const pickBannerSub = document.getElementById('pickBannerSub');
-  const redoMarkBtn = document.getElementById('redoMarkBtn');
   const confirmMarkBtn = document.getElementById('confirmMarkBtn');
-  const MARK_PROMPT = '按住剛剛按壓的位置，拖曳到壓痕外緣';
-  const MARK_PROMPT_SUB = '放開手指即可確認位置';
   const restartBtn2 = document.getElementById('restartBtn2');
 
   const MAX_W = 480;
@@ -591,39 +587,34 @@
     captureFrame(shot0);
     canvas.width = shot0.width;
     canvas.height = shot0.height;
-    spotA = null; radius = null; refRadius = null;
+
+    // Default the mark to the middle of the frame — since the phone stays propped
+    // aiming at the ankle for the whole test, the press site is almost always right
+    // there already. This means the common case needs no interaction with the screen
+    // at all (which would otherwise mean picking the phone up to see it clearly,
+    // breaking the "keep it still" framing the countdown depends on). Tapping the
+    // canvas still adjusts the mark for anyone whose ankle wasn't centered.
+    spotA = { x: canvas.width/2, y: canvas.height/2 };
+    radius = defaultRadius(canvas.width);
+    refRadius = Math.max(radius + 18, radius * 2.0);
 
     video.classList.add('hidden');
     canvas.classList.remove('hidden');
-    pickBannerText.textContent = MARK_PROMPT;
-    pickBannerSub.textContent = MARK_PROMPT_SUB;
-    pickBanner.classList.remove('hidden');
     releaseBtn.classList.add('hidden');
     liveRestartBtn.classList.remove('hidden');
-    liveStepText.textContent = '按住剛剛按壓的位置，拖曳到壓痕外緣，放開確認';
     redraw();
+    showMarkConfirm();
   });
 
   function showMarkConfirm(){
     pickBannerText.textContent = '已標記完成';
-    pickBannerSub.textContent = '覺得不準可以重新圈選，或直接開始比對';
-    redoMarkBtn.classList.remove('hidden');
+    pickBannerSub.textContent = '位置不準可以直接點一下畫面調整，滿意就按開始比對';
+    pickBanner.classList.remove('hidden');
     confirmMarkBtn.classList.remove('hidden');
     liveStepText.textContent = '確認壓痕位置後即可開始比對';
   }
 
-  redoMarkBtn.addEventListener('click', () => {
-    spotA = null; radius = null; refRadius = null;
-    redoMarkBtn.classList.add('hidden');
-    confirmMarkBtn.classList.add('hidden');
-    pickBannerText.textContent = MARK_PROMPT;
-    pickBannerSub.textContent = MARK_PROMPT_SUB;
-    liveStepText.textContent = '按住剛剛按壓的位置，拖曳到壓痕外緣，放開確認';
-    redraw();
-  });
-
   confirmMarkBtn.addEventListener('click', () => {
-    redoMarkBtn.classList.add('hidden');
     confirmMarkBtn.classList.add('hidden');
     finalizeMarking();
   });
@@ -736,7 +727,6 @@
     countdownOverlay.classList.add('hidden');
     canvas.classList.add('hidden');
     pickBanner.classList.add('hidden');
-    redoMarkBtn.classList.add('hidden');
     confirmMarkBtn.classList.add('hidden');
     video.classList.remove('hidden');
     releaseBtn.classList.remove('hidden');
