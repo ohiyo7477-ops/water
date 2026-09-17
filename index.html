@@ -175,6 +175,10 @@
   .tips-title{ font-size:14.5px; font-weight:700; color:#3f6b4f; margin-bottom:8px; }
   .tips-list{ margin:0; padding-left:18px; font-size:13.5px; color:var(--ink); line-height:1.8; }
   .tips-list li{ margin-bottom:4px; }
+  .promo-note{
+    font-size:13.5px; color:var(--accent-dark); background:#fbf1e8; border-radius:10px;
+    padding:10px 12px; line-height:1.7; margin-top:14px; text-align:center; font-weight:700;
+  }
   .result-badge{
     display:inline-block; font-size:16px; font-weight:800; padding:8px 20px;
     border-radius:999px; margin: 4px 0 10px;
@@ -313,6 +317,8 @@
         <li>用皮尺量小腿最粗處，比較剛起床與睡前的差異</li>
       </ul>
     </div>
+
+    <div class="promo-note hidden" id="promoNote">✨ Cofit 即將推出水腫對策，敬請期待。</div>
 
     <details>
       <summary>判斷標準是什麼？</summary>
@@ -849,6 +855,7 @@
     const colorRecover = color0 > 0.02 ? clamp(1 - (color10 / color0), 0, 1) : 1;
 
     let label, badgeBg, badgeColor, desc;
+    let isNormal = false;
     if(unstable){
       // The scene itself changed too much to trust these readings (camera/foot moved,
       // lighting shifted — possibly not even pointed at skin anymore). Showing a
@@ -860,21 +867,22 @@
     } else if(depth0 < DEPTH_LOW && color0 < COLOR_LOW){
       label = '正常，無明顯水腫';
       badgeBg = '#e7f4ec'; badgeColor = '#2f8f5f';
-      desc = '按壓後幾乎沒有留下凹陷或膚色變化，皮膚回彈快，目前沒有明顯的水腫跡象。';
+      desc = '按壓後幾乎沒有留下凹陷或膚色變化，皮膚回彈快，目前沒有明顯的水腫跡象。也可透過下面日常自我觀察做進一步檢測。';
+      isNormal = true;
     } else {
       const depthOK = depth10 < DEPTH_LOW || depthRecover > 0.6;
       const colorOK = color10 < COLOR_LOW || colorRecover > 0.6;
       if(depthOK && colorOK){
         label = '輕度水腫';
         badgeBg = '#fbf0da'; badgeColor = '#a67a1f';
-        desc = `放開後出現淺淺凹陷或短暫泛白，但 ${lastElapsedSec} 秒內凹陷與膚色都已明顯恢復，屬於輕度水腫的常見表現，建議多補充水分、適度活動下肢。`;
+        desc = `放開後出現淺淺凹陷或短暫泛白，但 ${lastElapsedSec} 秒內凹陷與膚色都已明顯恢復，屬於輕度水腫的常見表現，建議多補充水分、適度活動下肢。Cofit 即將推出水腫對策，敬請期待。`;
       } else {
         label = '中重度水腫';
         badgeBg = '#fbe6e1'; badgeColor = '#b6402c';
         const lagging = [];
         if(!depthOK) lagging.push('凹陷');
         if(!colorOK) lagging.push('膚色泛白');
-        desc = `${lastElapsedSec} 秒後「${lagging.join('、')}」仍未恢復，回彈較慢，建議留意飲食鹽分攝取並持續觀察，如持續未改善建議諮詢專業醫療人員。`;
+        desc = `${lastElapsedSec} 秒後「${lagging.join('、')}」仍未恢復，回彈較慢，建議留意飲食鹽分攝取並持續觀察。Cofit 即將推出水腫對策，敬請期待。`;
       }
     }
 
@@ -882,6 +890,7 @@
     document.getElementById('scoreLabel').style.background = badgeBg;
     document.getElementById('scoreLabel').style.color = badgeColor;
     document.getElementById('scoreDesc').textContent = desc;
+    document.getElementById('promoNote').classList.toggle('hidden', !isNormal);
 
     document.getElementById('recoverNum').textContent = (unstable || depth0 < DEPTH_LOW) ? '—' : Math.round(depthRecover*100) + '%';
     document.getElementById('colorRecoverNum').textContent = (unstable || color0 < COLOR_LOW) ? '—' : Math.round(colorRecover*100) + '%';
