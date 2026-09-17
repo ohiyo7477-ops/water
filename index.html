@@ -63,6 +63,28 @@
     padding:10px 12px; line-height:1.7; margin-bottom:16px;
   }
 
+  .hold-still-notice{
+    font-size:15px; font-weight:800; color:#8a3a1f;
+    background:#fbe3d3; border:1.5px solid #eab488;
+    border-radius:12px; padding:12px 14px 12px 42px; line-height:1.5;
+    margin-bottom:16px; position:relative;
+  }
+  .hold-still-notice::before{
+    content:"📌"; font-size:19px; position:absolute; left:12px; top:11px;
+  }
+
+  .target-guide{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    pointer-events:none;
+  }
+  .target-guide svg{ filter: drop-shadow(0 0 4px rgba(0,0,0,0.6)); }
+  .target-guide .label{
+    font-size:12.5px; font-weight:700; color:#fff;
+    background:rgba(20,15,10,0.6); padding:4px 10px; border-radius:999px;
+    white-space:nowrap;
+  }
+
   .leg-diagram{
     display:flex; flex-direction:column; align-items:center; text-align:center;
     background:#fbf9f6; border-radius:14px; padding:14px 16px 16px;
@@ -195,7 +217,8 @@
       <div><b>① 開啟相機：</b>點擊下方按鈕，允許使用相機權限</div>
       <div><b>② 找到位置：</b>腳踝內側「內踝」凸起骨頭上方（見下圖）</div>
       <div><b>③ 用力按壓：</b>約 5 秒後放開</div>
-      <div><b>④ 開始比對：</b>放開瞬間點擊「放開了，開始比對」，系統會自動標記壓痕位置並比對回彈狀況，全程不用再拿起手機（最快幾秒、最多 10 秒）</div>
+      <div><b>④ 自動等待：</b>放開瞬間點擊「放開了，開始比對」，接著全程不用拿起手機，系統會自動倒數（最快幾秒、最多 10 秒）</div>
+      <div><b>⑤ 標記查看：</b>倒數結束後，點選畫面上壓痕最深或膚色最淺的位置，即可查看結果</div>
     </div>
 
     <div class="leg-diagram">
@@ -213,10 +236,18 @@
 
   <!-- Live camera + marking + adaptive countdown, all in one screen -->
   <div class="card hidden" id="liveCard">
-    <div class="notice" id="liveStepText">放開後立刻點擊下方按鈕，保持鏡頭不動</div>
+    <div class="hold-still-notice" id="liveStepText">放開後立刻點擊下方按鈕，手機全程保持不動</div>
     <div class="canvas-wrap">
       <video id="video" autoplay muted playsinline></video>
       <canvas id="mainCanvas" class="hidden"></canvas>
+      <div class="target-guide" id="targetGuide">
+        <svg viewBox="0 0 100 100" width="86" height="86">
+          <circle cx="50" cy="50" r="36" fill="none" stroke="#fff" stroke-width="2.2" stroke-dasharray="6,5"/>
+          <line x1="50" y1="28" x2="50" y2="72" stroke="#fff" stroke-width="1.5" opacity="0.8"/>
+          <line x1="28" y1="50" x2="72" y2="50" stroke="#fff" stroke-width="1.5" opacity="0.8"/>
+        </svg>
+        <div class="label">把內踝對準這裡再按壓</div>
+      </div>
       <div class="pick-banner hidden" id="pickBanner">
         <div>
           <div id="pickBannerText">已標記完成</div>
@@ -238,7 +269,7 @@
     </div>
     <div class="btn-row">
       <button class="btn-primary btn-big" id="releaseBtn">放開了！開始比對</button>
-      <button class="btn-primary hidden" id="confirmMarkBtn">開始比對</button>
+      <button class="btn-primary hidden" id="confirmMarkBtn">查看結果</button>
       <button class="btn-ghost hidden" id="liveRestartBtn">重新測試</button>
     </div>
   </div>
@@ -289,8 +320,10 @@
         參考臨床上常用的「按壓測試」：在腳踝內側（內踝）用力按壓約 5 秒後放開，
         <b>正常</b>皮膚會立刻回彈、不留痕跡；<b>輕度水腫</b>會出現淺淺凹陷，但很快回彈；
         <b>中重度水腫</b>凹陷較深，需要 10 秒以上甚至更久才能完全恢復。
-        本工具會持續監測壓痕處的<b>凹陷陰影</b>與<b>皮膚泛白（暫時缺血）</b>是否已經恢復，
-        一偵測到明顯恢復就會提前結束比對；如果一直沒有恢復，最多會等滿 10 秒，
+        本工具會在等待過程中自動偵測畫面變化決定何時結束（最快幾秒、最多等滿 10 秒），
+        全程不需要看畫面或操作手機。倒數結束後，再請你自己點選畫面上壓痕最深或膚色最淺的位置，
+        比對<b>凹陷陰影</b>與<b>皮膚泛白（暫時缺血）</b>是否已經恢復——由你親自確認位置，
+        比工具自動猜測更準，也不會因為要盯著螢幕操作而讓手機跟著移動、拍歪掉。
         只要有一項還沒恢復，就會判定為中重度水腫，標準較為嚴格。
         因為是比對相隔一段時間的兩張畫面，<b>手機或鏡頭若有移動、光線改變</b>，
         都可能讓兩張畫面對不齊而影響準確度，工具偵測到這種情況時會另外提醒重測。
@@ -317,6 +350,7 @@
   const releaseBtn = document.getElementById('releaseBtn');
   const liveRestartBtn = document.getElementById('liveRestartBtn');
   const liveStepText = document.getElementById('liveStepText');
+  const targetGuide = document.getElementById('targetGuide');
   const countdownOverlay = document.getElementById('countdownOverlay');
   const countdownNum = document.getElementById('countdownNum');
   const countdownTxt = document.getElementById('countdownTxt');
@@ -458,7 +492,7 @@
     ctx.closePath();
     ctx.clip();
     const srcSize = (loupeR*2) / zoom;
-    ctx.drawImage(shot0, pos.x - srcSize/2, pos.y - srcSize/2, srcSize, srcSize, lx - loupeR, ly - loupeR, loupeR*2, loupeR*2);
+    ctx.drawImage(shot10, pos.x - srcSize/2, pos.y - srcSize/2, srcSize, srcSize, lx - loupeR, ly - loupeR, loupeR*2, loupeR*2);
     ctx.restore();
 
     ctx.beginPath(); ctx.arc(lx, ly, loupeR, 0, Math.PI*2);
@@ -477,7 +511,7 @@
 
   function redraw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.drawImage(shot0, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(shot10, 0, 0, canvas.width, canvas.height);
     if(marking && dragStart){
       const dx = dragCurrent.x-dragStart.x, dy = dragCurrent.y-dragStart.y;
       const r = Math.max(10, Math.sqrt(dx*dx+dy*dy));
@@ -585,52 +619,54 @@
 
   releaseBtn.addEventListener('click', () => {
     captureFrame(shot0);
-    canvas.width = shot0.width;
-    canvas.height = shot0.height;
 
-    // Default the mark to the middle of the frame — since the phone stays propped
-    // aiming at the ankle for the whole test, the press site is almost always right
-    // there already. This means the common case needs no interaction with the screen
-    // at all (which would otherwise mean picking the phone up to see it clearly,
-    // breaking the "keep it still" framing the countdown depends on). Tapping the
-    // canvas still adjusts the mark for anyone whose ankle wasn't centered.
-    spotA = { x: canvas.width/2, y: canvas.height/2 };
-    radius = defaultRadius(canvas.width);
-    refRadius = Math.max(radius + 18, radius * 2.0);
-
-    video.classList.add('hidden');
-    canvas.classList.remove('hidden');
+    // No marking here — nothing to tap, nothing to look closely at, so the phone can
+    // just stay exactly where it's propped. Marking happens AFTER the wait instead,
+    // on the "after" photo, once the camera is already done and picking the phone up
+    // to look closely no longer risks the test itself.
+    targetGuide.classList.add('hidden');
     releaseBtn.classList.add('hidden');
     liveRestartBtn.classList.remove('hidden');
-    redraw();
-    showMarkConfirm();
-  });
-
-  function showMarkConfirm(){
-    pickBannerText.textContent = '已標記完成';
-    pickBannerSub.textContent = '位置不準可以直接點一下畫面調整，滿意就按開始比對';
-    pickBanner.classList.remove('hidden');
-    confirmMarkBtn.classList.remove('hidden');
-    liveStepText.textContent = '確認壓痕位置後即可開始比對';
-  }
-
-  confirmMarkBtn.addEventListener('click', () => {
-    confirmMarkBtn.classList.add('hidden');
-    finalizeMarking();
-  });
-
-  function finalizeMarking(){
-    pickBanner.classList.add('hidden');
-    canvas.classList.add('hidden');
-    video.classList.remove('hidden');
     liveStepText.textContent = '保持鏡頭不動，正在自動比對回彈狀況…';
     try{
       startAdaptiveCountdown();
     }catch(err){
-      alert('標記時發生錯誤，請重新測試一次。\n(' + err.message + ')');
+      alert('比對時發生錯誤，請重新測試一次。\n(' + err.message + ')');
       fullRestart();
     }
+  });
+
+  function enterPostWaitMarking(){
+    canvas.width = shot10.width;
+    canvas.height = shot10.height;
+    spotA = null; radius = null; refRadius = null;
+
+    video.classList.add('hidden');
+    canvas.classList.remove('hidden');
+    pickBannerText.textContent = '請點選壓痕最深或膚色最淺的位置';
+    pickBannerSub.textContent = '拖曳到範圍外緣，放開手指確認';
+    pickBanner.classList.remove('hidden');
+    liveStepText.textContent = '相機已拍完，請點選壓痕位置查看結果';
+    redraw();
   }
+
+  function showMarkConfirm(){
+    pickBannerText.textContent = '已標記完成';
+    pickBannerSub.textContent = '位置不準可以再點一次調整，滿意就按查看結果';
+    confirmMarkBtn.classList.remove('hidden');
+  }
+
+  confirmMarkBtn.addEventListener('click', () => {
+    confirmMarkBtn.classList.add('hidden');
+    pickBanner.classList.add('hidden');
+    canvas.classList.add('hidden');
+    try{
+      runAnalysis();
+    }catch(err){
+      alert('分析時發生錯誤，請重新測試一次。\n(' + err.message + ')');
+      fullRestart();
+    }
+  });
 
   function setProgressRing(fraction){
     const offset = RING_CIRCUMFERENCE * (1 - clamp(fraction, 0, 1));
@@ -642,10 +678,19 @@
     setProgressRing(0);
     countdownNum.textContent = COUNTDOWN_SECONDS;
 
-    const sampleR = Math.max(10, Math.min(radius/2.2, 20));
+    // This tracked spot is ONLY used to decide how long to wait — the actual
+    // measurement/verdict comes from where the user taps on the "after" photo once
+    // the wait is done. Since nothing is marked yet at this point, assume the press
+    // site is near the frame center (matches the on-screen targeting guide) — good
+    // enough for a timing decision even if it's not exactly where the user presses.
+    const trackSpot = { x: shot0.width/2, y: shot0.height/2 };
+    const trackRadius = defaultRadius(shot0.width);
+    const trackRefRadius = Math.max(trackRadius + 18, trackRadius * 2.0);
+
+    const sampleR = Math.max(10, Math.min(trackRadius/2.2, 20));
     const refSampleR = 11;
-    const a0 = sampleRegion(shot0, spotA.x, spotA.y, sampleR);
-    const b0 = sampleReferenceRing(shot0, spotA, refRadius, refSampleR);
+    const a0 = sampleRegion(shot0, trackSpot.x, trackSpot.y, sampleR);
+    const b0 = sampleReferenceRing(shot0, trackSpot, trackRefRadius, refSampleR);
     const DEPTH_LOW = 0.05, COLOR_LOW = 0.04;
     const depth0 = clamp((b0.lum - a0.lum) / Math.max(b0.lum, 1), 0, 1);
     const color0 = paleness(a0, b0);
@@ -660,8 +705,8 @@
       countdownTxt.textContent = PHRASES[Math.floor(elapsed / 2200) % PHRASES.length];
 
       captureFrame(liveSample);
-      const a1 = sampleRegion(liveSample, spotA.x, spotA.y, sampleR);
-      const b1 = sampleReferenceRing(liveSample, spotA, refRadius, refSampleR);
+      const a1 = sampleRegion(liveSample, trackSpot.x, trackSpot.y, sampleR);
+      const b1 = sampleReferenceRing(liveSample, trackSpot, trackRefRadius, refSampleR);
       const depth1 = clamp((b1.lum - a1.lum) / Math.max(b1.lum, 1), 0, 1);
       const color1 = paleness(a1, b1);
       const depthRecover = depth0 > 0.001 ? clamp(1 - (depth1/depth0), 0, 1) : 1;
@@ -707,13 +752,14 @@
     shot10.getContext('2d').drawImage(liveSample, 0, 0);
     lastElapsedSec = elapsedSec;
 
+    // Camera work is done — nothing left that needs the phone held still, so this is
+    // exactly when it's safe to let the user pick the phone up and look closely.
     stopCamera();
-    liveCard.classList.add('hidden');
     countdownOverlay.classList.add('hidden');
     try{
-      runAnalysis();
+      enterPostWaitMarking();
     }catch(err){
-      alert('分析時發生錯誤，請重新測試一次。\n(' + err.message + ')');
+      alert('發生錯誤，請重新測試一次。\n(' + err.message + ')');
       fullRestart();
     }
   }
@@ -729,9 +775,10 @@
     pickBanner.classList.add('hidden');
     confirmMarkBtn.classList.add('hidden');
     video.classList.remove('hidden');
+    targetGuide.classList.remove('hidden');
     releaseBtn.classList.remove('hidden');
     liveRestartBtn.classList.add('hidden');
-    liveStepText.textContent = '放開後立刻點擊下方按鈕，保持鏡頭不動';
+    liveStepText.textContent = '放開後立刻點擊下方按鈕，手機全程保持不動';
     marking = false; dragStart = null; dragCurrent = null;
     spotA = null; radius = null; refRadius = null;
   }
