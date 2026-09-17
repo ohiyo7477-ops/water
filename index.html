@@ -217,7 +217,7 @@
       <div><b>① 開啟相機：</b>點擊下方按鈕，允許使用相機權限</div>
       <div><b>② 找到位置：</b>腳踝內側「內踝」凸起骨頭上方（見下圖）</div>
       <div><b>③ 用力按壓：</b>約 5 秒後放開</div>
-      <div><b>④ 自動等待：</b>放開瞬間點擊「放開了，開始比對」，接著全程不用拿起手機，系統會自動倒數（最快幾秒、最多 10 秒）</div>
+      <div><b>④ 自動等待：</b>放開瞬間點擊「放開了，開始比對」，倒數結束前不要移動鏡頭位置，系統會自動倒數（最快幾秒、最多 10 秒）</div>
       <div><b>⑤ 標記查看：</b>倒數結束後，點選畫面上壓痕最深或膚色最淺的位置，即可查看結果</div>
     </div>
 
@@ -236,7 +236,7 @@
 
   <!-- Live camera + marking + adaptive countdown, all in one screen -->
   <div class="card hidden" id="liveCard">
-    <div class="hold-still-notice" id="liveStepText">放開後立刻點擊下方按鈕，手機全程保持不動</div>
+    <div class="hold-still-notice" id="liveStepText">用力按壓 5 秒，放開後立刻點擊下方按鈕，手機全程保持不動</div>
     <div class="canvas-wrap">
       <video id="video" autoplay muted playsinline></video>
       <canvas id="mainCanvas" class="hidden"></canvas>
@@ -508,6 +508,8 @@
 
   let marking = false;
   let dragStart = null, dragCurrent = null;
+  let movingMark = false;
+  let moveOffset = { dx: 0, dy: 0 };
 
   function redraw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -518,6 +520,11 @@
       drawMarker(dragStart, '#e0413f', true);
       drawRing(dragStart, r, '#e0913f', true);
       drawLoupe(dragCurrent);
+    } else if(movingMark && spotA){
+      drawMarker(spotA, '#e0413f', true);
+      if(radius) drawRing(spotA, radius, '#e0913f', true);
+      if(refRadius) drawRing(spotA, refRadius, '#3f7be0', true);
+      drawLoupe(spotA);
     } else if(spotA){
       drawMarker(spotA, '#e0413f');
       if(radius) drawRing(spotA, radius, '#e0913f');
@@ -543,19 +550,46 @@
     const pos = getPos(e);
     if(!pos) return; // canvas not laid out yet; ignore, user can just tap again
     canvas.setPointerCapture(e.pointerId);
+
+    // A finger is much wider than the marker, so nailing the exact spot in one
+    // press-drag-release is hard. Once a mark exists, grabbing anywhere near its
+    // circle drags the whole thing (same size, new position) instead of starting a
+    // brand new one — lets the user nudge it into place. Starting a drag well
+    // outside the existing circle still places a fresh mark.
+    if(spotA && radius){
+      const dx = pos.x - spotA.x, dy = pos.y - spotA.y;
+      if(Math.sqrt(dx*dx + dy*dy) <= radius * 1.6){
+        movingMark = true;
+        moveOffset = { dx, dy };
+        redraw();
+        return;
+      }
+    }
+
     marking = true;
     dragStart = pos;
     dragCurrent = pos;
     redraw();
   });
   canvas.addEventListener('pointermove', (e) => {
-    if(!marking) return;
+    if(!marking && !movingMark) return;
     const pos = getPos(e);
     if(!pos) return;
+    if(movingMark){
+      spotA = { x: pos.x - moveOffset.dx, y: pos.y - moveOffset.dy };
+      redraw();
+      return;
+    }
     dragCurrent = pos;
     redraw();
   });
   canvas.addEventListener('pointerup', (e) => {
+    if(movingMark){
+      movingMark = false;
+      redraw();
+      showMarkConfirm();
+      return;
+    }
     if(!marking) return;
     marking = false;
     const dx = dragCurrent.x-dragStart.x, dy = dragCurrent.y-dragStart.y;
@@ -569,7 +603,7 @@
     showMarkConfirm();
   });
   canvas.addEventListener('pointercancel', () => {
-    marking = false; dragStart = null; dragCurrent = null; redraw();
+    marking = false; movingMark = false; dragStart = null; dragCurrent = null; redraw();
   });
 
   function sampleRegion(sourceCanvas, cx, cy, r){
@@ -652,7 +686,7 @@
 
   function showMarkConfirm(){
     pickBannerText.textContent = '已標記完成';
-    pickBannerSub.textContent = '位置不準可以再點一次調整，滿意就按查看結果';
+    pickBannerSub.textContent = '可以拖曳圓圈微調位置，滿意就按查看結果';
     confirmMarkBtn.classList.remove('hidden');
   }
 
@@ -778,7 +812,7 @@
     targetGuide.classList.remove('hidden');
     releaseBtn.classList.remove('hidden');
     liveRestartBtn.classList.add('hidden');
-    liveStepText.textContent = '放開後立刻點擊下方按鈕，手機全程保持不動';
+    liveStepText.textContent = '用力按壓 5 秒，放開後立刻點擊下方按鈕，手機全程保持不動';
     marking = false; dragStart = null; dragCurrent = null;
     spotA = null; radius = null; refRadius = null;
   }
