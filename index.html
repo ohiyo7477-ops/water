@@ -216,8 +216,8 @@
       <canvas id="mainCanvas" class="hidden"></canvas>
       <div class="pick-banner hidden" id="pickBanner">
         <div>
-          <div>按住剛剛按壓的位置，拖曳到壓痕外緣</div>
-          <span class="sub">放開手指即可確認，會自動開始比對</span>
+          <div id="pickBannerText">按住剛剛按壓的位置，拖曳到壓痕外緣</div>
+          <span class="sub" id="pickBannerSub">放開手指即可確認位置</span>
         </div>
       </div>
       <div class="countdown-overlay hidden" id="countdownOverlay">
@@ -233,6 +233,8 @@
     </div>
     <div class="btn-row">
       <button class="btn-primary btn-big" id="releaseBtn">放開了！開始比對</button>
+      <button class="btn-ghost hidden" id="redoMarkBtn">重新圈選</button>
+      <button class="btn-primary hidden" id="confirmMarkBtn">開始比對</button>
       <button class="btn-ghost hidden" id="liveRestartBtn">重新測試</button>
     </div>
   </div>
@@ -322,6 +324,12 @@
   const canvas = document.getElementById('mainCanvas');
   const ctx = canvas.getContext('2d');
   const pickBanner = document.getElementById('pickBanner');
+  const pickBannerText = document.getElementById('pickBannerText');
+  const pickBannerSub = document.getElementById('pickBannerSub');
+  const redoMarkBtn = document.getElementById('redoMarkBtn');
+  const confirmMarkBtn = document.getElementById('confirmMarkBtn');
+  const MARK_PROMPT = '按住剛剛按壓的位置，拖曳到壓痕外緣';
+  const MARK_PROMPT_SUB = '放開手指即可確認位置';
   const restartBtn2 = document.getElementById('restartBtn2');
 
   const MAX_W = 480;
@@ -340,7 +348,7 @@
   const liveSample = document.createElement('canvas'); // scratch canvas for live monitoring
   let lastElapsedSec = 0;
 
-  let spotA = null, radius = null, spotB = null;
+  let spotA = null, radius = null, refRadius = null;
 
   function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
 
@@ -382,18 +390,40 @@
 
   function defaultRadius(w){ return clamp(w * 0.09, 14, 40); }
 
-  function autoReferencePoint(spot, w, h, offset){
-    const margin = 22;
-    const candidates = [
-      {x: spot.x+offset, y: spot.y}, {x: spot.x-offset, y: spot.y},
-      {x: spot.x, y: spot.y+offset}, {x: spot.x, y: spot.y-offset},
-      {x: spot.x+offset*0.7, y: spot.y+offset*0.7}, {x: spot.x-offset*0.7, y: spot.y-offset*0.7},
-      {x: spot.x+offset*0.7, y: spot.y-offset*0.7}, {x: spot.x-offset*0.7, y: spot.y+offset*0.7}
-    ];
-    for(const c of candidates){
-      if(c.x > margin && c.x < w-margin && c.y > margin && c.y < h-margin) return c;
+  function median(arr){
+    const s = [...arr].sort((a,b) => a-b);
+    const m = Math.floor(s.length/2);
+    return s.length % 2 ? s[m] : (s[m-1]+s[m])/2;
+  }
+
+  // Samples a ring of points around the press spot instead of one single point.
+  // A single auto-picked reference point can land on clothing (pant leg, sock)
+  // instead of skin — the ring + median is resistant to one or two bad samples
+  // as long as most of the ring is actually skin.
+  function sampleReferenceRing(sourceCanvas, center, ringRadius, sampleR){
+    const N = 8;
+    let r = ringRadius;
+    for(let attempt = 0; attempt < 3; attempt++){
+      const m = sampleR + 4;
+      const samples = [];
+      for(let i = 0; i < N; i++){
+        const angle = (i/N) * Math.PI*2;
+        const p = { x: center.x + Math.cos(angle)*r, y: center.y + Math.sin(angle)*r };
+        if(p.x >= m && p.x <= sourceCanvas.width-m && p.y >= m && p.y <= sourceCanvas.height-m){
+          samples.push(sampleRegion(sourceCanvas, p.x, p.y, sampleR));
+        }
+      }
+      if(samples.length >= 4){
+        return {
+          lum: median(samples.map(s => s.lum)),
+          r: median(samples.map(s => s.r)),
+          g: median(samples.map(s => s.g)),
+          b: median(samples.map(s => s.b))
+        };
+      }
+      r *= 0.7;
     }
-    return { x: w/2, y: h/2 };
+    return sampleRegion(sourceCanvas, sourceCanvas.width/2, sourceCanvas.height/2, sampleR);
   }
 
   function drawMarker(pos, color, preview){
@@ -459,7 +489,7 @@
     } else if(spotA){
       drawMarker(spotA, '#e0413f');
       if(radius) drawRing(spotA, radius, '#e0913f');
-      if(spotB) drawMarker(spotB, '#3f7be0');
+      if(refRadius) drawRing(spotA, refRadius, '#3f7be0');
     }
   }
 
@@ -500,9 +530,11 @@
     const dragR = Math.sqrt(dx*dx+dy*dy);
     spotA = dragStart;
     radius = dragR < 10 ? defaultRadius(canvas.width) : clamp(dragR, 14, canvas.width*0.25);
-    spotB = autoReferencePoint(spotA, canvas.width, canvas.height, radius*3.2);
+    // Keep the reference ring reasonably close to the press site — close enough that
+    // it's still likely to be the same piece of skin, not the pant hem or a sock edge.
+    refRadius = Math.max(radius + 18, radius * 2.0);
     redraw();
-    setTimeout(finalizeMarking, 400);
+    showMarkConfirm();
   });
   canvas.addEventListener('pointercancel', () => {
     marking = false; dragStart = null; dragCurrent = null; redraw();
@@ -545,15 +577,41 @@
     captureFrame(shot0);
     canvas.width = shot0.width;
     canvas.height = shot0.height;
-    spotA = null; radius = null; spotB = null;
+    spotA = null; radius = null; refRadius = null;
 
     video.classList.add('hidden');
     canvas.classList.remove('hidden');
+    pickBannerText.textContent = MARK_PROMPT;
+    pickBannerSub.textContent = MARK_PROMPT_SUB;
     pickBanner.classList.remove('hidden');
     releaseBtn.classList.add('hidden');
     liveRestartBtn.classList.remove('hidden');
     liveStepText.textContent = '按住剛剛按壓的位置，拖曳到壓痕外緣，放開確認';
     redraw();
+  });
+
+  function showMarkConfirm(){
+    pickBannerText.textContent = '已標記完成';
+    pickBannerSub.textContent = '覺得不準可以重新圈選，或直接開始比對';
+    redoMarkBtn.classList.remove('hidden');
+    confirmMarkBtn.classList.remove('hidden');
+    liveStepText.textContent = '確認壓痕位置後即可開始比對';
+  }
+
+  redoMarkBtn.addEventListener('click', () => {
+    spotA = null; radius = null; refRadius = null;
+    redoMarkBtn.classList.add('hidden');
+    confirmMarkBtn.classList.add('hidden');
+    pickBannerText.textContent = MARK_PROMPT;
+    pickBannerSub.textContent = MARK_PROMPT_SUB;
+    liveStepText.textContent = '按住剛剛按壓的位置，拖曳到壓痕外緣，放開確認';
+    redraw();
+  });
+
+  confirmMarkBtn.addEventListener('click', () => {
+    redoMarkBtn.classList.add('hidden');
+    confirmMarkBtn.classList.add('hidden');
+    finalizeMarking();
   });
 
   function finalizeMarking(){
@@ -580,9 +638,9 @@
     countdownNum.textContent = COUNTDOWN_SECONDS;
 
     const sampleR = Math.max(10, Math.min(radius/2.2, 20));
-    const refR = 16;
+    const refSampleR = 11;
     const a0 = sampleRegion(shot0, spotA.x, spotA.y, sampleR);
-    const b0 = sampleRegion(shot0, spotB.x, spotB.y, refR);
+    const b0 = sampleReferenceRing(shot0, spotA, refRadius, refSampleR);
     const DEPTH_LOW = 0.05, COLOR_LOW = 0.05;
     const depth0 = clamp((b0.lum - a0.lum) / Math.max(b0.lum, 1), 0, 1);
     const color0 = clamp((redness(b0) - redness(a0)) / 120, 0, 1);
@@ -598,7 +656,7 @@
 
       captureFrame(liveSample);
       const a1 = sampleRegion(liveSample, spotA.x, spotA.y, sampleR);
-      const b1 = sampleRegion(liveSample, spotB.x, spotB.y, refR);
+      const b1 = sampleReferenceRing(liveSample, spotA, refRadius, refSampleR);
       const depth1 = clamp((b1.lum - a1.lum) / Math.max(b1.lum, 1), 0, 1);
       const color1 = clamp((redness(b1) - redness(a1)) / 120, 0, 1);
       const depthRecover = depth0 > 0.001 ? clamp(1 - (depth1/depth0), 0, 1) : 1;
@@ -654,11 +712,14 @@
     countdownOverlay.classList.add('hidden');
     canvas.classList.add('hidden');
     pickBanner.classList.add('hidden');
+    redoMarkBtn.classList.add('hidden');
+    confirmMarkBtn.classList.add('hidden');
     video.classList.remove('hidden');
     releaseBtn.classList.remove('hidden');
     liveRestartBtn.classList.add('hidden');
     liveStepText.textContent = '放開後立刻點擊下方按鈕，保持鏡頭不動';
     marking = false; dragStart = null; dragCurrent = null;
+    spotA = null; radius = null; refRadius = null;
   }
 
   liveRestartBtn.addEventListener('click', fullRestart);
@@ -666,12 +727,12 @@
 
   function runAnalysis(){
     const sampleR = Math.max(10, Math.min(radius/2.2, 20));
-    const refR = 16;
+    const refSampleR = 11;
 
     const a0 = sampleRegion(shot0, spotA.x, spotA.y, sampleR);
-    const b0 = sampleRegion(shot0, spotB.x, spotB.y, refR);
+    const b0 = sampleReferenceRing(shot0, spotA, refRadius, refSampleR);
     const a10 = sampleRegion(shot10, spotA.x, spotA.y, sampleR);
-    const b10 = sampleRegion(shot10, spotB.x, spotB.y, refR);
+    const b10 = sampleReferenceRing(shot10, spotA, refRadius, refSampleR);
 
     // sanity check: the reference patch is plain, untouched skin — it should barely
     // change between the two shots. If it moved a lot, the phone/leg likely shifted
