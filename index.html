@@ -562,6 +562,18 @@
 
   const redness = (p) => p.r - (p.g + p.b) / 2;
 
+  // Blanched/pale skin is mainly about the spot going LIGHTER than the surrounding
+  // skin, often fairly evenly across R/G/B (reduced blood flow reflects more light
+  // overall). A hue-balance metric alone (redness) is blind to that — if R, G and B
+  // all rise by roughly the same amount, "redness" barely changes even though the
+  // spot is visibly whiter to the eye. So combine a luminance-based paleness signal
+  // with the hue-based one and take whichever reads more severe.
+  function paleness(spot, ref){
+    const lumPale = clamp((spot.lum - ref.lum) / Math.max(ref.lum, 1), 0, 1);
+    const huePale = clamp((redness(ref) - redness(spot)) / 120, 0, 1);
+    return Math.max(lumPale, huePale);
+  }
+
   function drawCrop(targetCanvas, sourceCanvas, cx, cy, r){
     const tctx = targetCanvas.getContext('2d');
     r = Math.max(8, Math.min(r, 40));
@@ -641,9 +653,9 @@
     const refSampleR = 11;
     const a0 = sampleRegion(shot0, spotA.x, spotA.y, sampleR);
     const b0 = sampleReferenceRing(shot0, spotA, refRadius, refSampleR);
-    const DEPTH_LOW = 0.05, COLOR_LOW = 0.05;
+    const DEPTH_LOW = 0.05, COLOR_LOW = 0.04;
     const depth0 = clamp((b0.lum - a0.lum) / Math.max(b0.lum, 1), 0, 1);
-    const color0 = clamp((redness(b0) - redness(a0)) / 120, 0, 1);
+    const color0 = paleness(a0, b0);
 
     const monitorStart = performance.now();
 
@@ -658,7 +670,7 @@
       const a1 = sampleRegion(liveSample, spotA.x, spotA.y, sampleR);
       const b1 = sampleReferenceRing(liveSample, spotA, refRadius, refSampleR);
       const depth1 = clamp((b1.lum - a1.lum) / Math.max(b1.lum, 1), 0, 1);
-      const color1 = clamp((redness(b1) - redness(a1)) / 120, 0, 1);
+      const color1 = paleness(a1, b1);
       const depthRecover = depth0 > 0.001 ? clamp(1 - (depth1/depth0), 0, 1) : 1;
       const colorRecover = color0 > 0.02 ? clamp(1 - (color1/color0), 0, 1) : 1;
       const depthOK = depth1 < DEPTH_LOW || depthRecover > 0.6;
@@ -748,10 +760,9 @@
     const depthRecover = depth0 > 0.001 ? clamp(1 - (depth10 / depth0), 0, 1) : 1;
 
     // factor 2: skin blanching (paleness) vs reference skin, direction-aware.
-    const paleness = (spot, ref) => clamp((redness(ref) - redness(spot)) / 120, 0, 1);
     const color0 = paleness(a0, b0);
     const color10 = paleness(a10, b10);
-    const COLOR_LOW = 0.05;
+    const COLOR_LOW = 0.04;
     const colorRecover = color0 > 0.02 ? clamp(1 - (color10 / color0), 0, 1) : 1;
 
     let label, badgeBg, badgeColor, desc;
